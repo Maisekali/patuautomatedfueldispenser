@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>NexGen Fuel Intelligence | Real-Time Station Command Center</title>
+    <!-- Bootstrap 5 + Icons + Fonts + Chart.js -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(145deg, #eef2f9 0%, #e0e7f0 100%);
+            font-family: 'Inter', sans-serif;
+            padding: 2rem 1rem;
+            min-height: 100vh;
+        }
+
+        /* glassmorphic cards */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(2px);
+            border-radius: 32px;
+            box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(255,255,255,0.6);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 28px 40px -16px rgba(0, 0, 0, 0.18);
+        }
+
+        .stat-icon {
+            width: 52px;
+            height: 52px;
+            background: linear-gradient(135deg, #1e2b3c, #0f1a24);
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.7rem;
+            box-shadow: 0 6px 12px -8px rgba(0,0,0,0.2);
+        }
+
+        .fuel-badge {
+            padding: 8px 18px;
+            border-radius: 100px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            font-size: 0.9rem;
+        }
+
+        .badge-critical { background: #dc2626; color: white; box-shadow: 0 2px 8px rgba(220,38,38,0.3); }
+        .badge-warning { background: #f59e0b; color: #2c1a00; }
+        .badge-success { background: #10b981; color: white; }
+        .badge-medium { background: #facc15; color: #1e293b; }
+
+        .tank-canvas-container {
+            background: #f1f5f9;
+            border-radius: 28px;
+            padding: 12px;
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05), 0 8px 18px rgba(0,0,0,0.05);
+        }
+
+        canvas#fuelTankCanvas {
+            width: 100%;
+            height: auto;
+            background: #eef2ff;
+            border-radius: 24px;
+            display: block;
+        }
+
+        .update-blip {
+            transition: all 0.2s;
+        }
+
+        .blink-bg {
+            background-color: rgba(16, 185, 129, 0.2);
+        }
+
+        hr {
+            opacity: 0.5;
+            margin: 1rem 0;
+        }
+
+        .btn-outline-slate {
+            border: 1px solid #cbd5e1;
+            background: white;
+            color: #1e293b;
+            border-radius: 40px;
+            padding: 6px 18px;
+            font-weight: 500;
+            transition: 0.2s;
+        }
+        .btn-outline-slate:hover {
+            background: #0f172a;
+            border-color: #0f172a;
+            color: white;
+        }
+
+        .badge-soft {
+            background: #e2e8f0;
+            color: #0f172a;
+            border-radius: 40px;
+            padding: 6px 14px;
+            font-weight: 500;
+        }
+
+        .table-custom td, .table-custom th {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px 8px;
+        }
+
+        footer {
+            font-size: 0.8rem;
+            color: #475569;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 1rem; }
+            .stat-icon { width: 44px; height: 44px; font-size: 1.3rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-lg px-2 px-md-4">
+    <!-- Header Section -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h1 class="fw-bold" style="background: linear-gradient(120deg, #0b2b3b, #1e4a6e); background-clip: text; -webkit-background-clip: text; color: transparent;">
+                <i class="fas fa-gas-pump me-2" style="background: none; -webkit-background-clip: unset; color: #1e4a6e;"></i>FuelSense Command Center
+            </h1>
+            <p class="text-secondary-emphasis mt-1 mb-0"><i class="fas fa-microchip me-1"></i> IoT Smart Station | Final Year Project – Real-Time Telemetry</p>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <div class="badge-soft"><i class="far fa-clock me-1"></i> <span id="liveClock">--:--:--</span></div>
+            <div class="badge-soft"><i class="fas fa-chart-line me-1"></i> Channel: <strong>3356996</strong></div>
+            <button id="manualRefreshBtn" class="btn-outline-slate"><i class="fas fa-sync-alt me-1"></i> Refresh</button>
+        </div>
+    </div>
+
+    <!-- KPI ROW (4 cards) -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 h-100 d-flex align-items-center gap-3">
+                <div class="stat-icon"><i class="fas fa-tachometer-alt"></i></div>
+                <div>
+                    <p class="text-muted mb-0 small fw-semibold">FUEL LEVEL</p>
+                    <h3 class="fw-bold mb-0" id="fuelPercentDisplay">--%</h3>
+                    <span class="small" id="depthDisplay">-- cm depth</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 h-100 d-flex align-items-center gap-3">
+                <div class="stat-icon"><i class="fas fa-oil-can"></i></div>
+                <div>
+                    <p class="text-muted mb-0 small fw-semibold">EST. VOLUME</p>
+                    <h3 class="fw-bold mb-0" id="volumeDisplay">-- L</h3>
+                    <span class="small">capacity 5000 L</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 h-100 d-flex align-items-center gap-3">
+                <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+                <div>
+                    <p class="text-muted mb-0 small fw-semibold">CONSUMPTION RATE</p>
+                    <h3 class="fw-bold mb-0" id="consumptionRate">-- L/h</h3>
+                    <span class="small">last 2 readings</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="glass-card p-3 h-100 d-flex align-items-center gap-3">
+                <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
+                <div>
+                    <p class="text-muted mb-0 small fw-semibold">TIME TO EMPTY</p>
+                    <h3 class="fw-bold mb-0" id="timeToEmpty">-- h</h3>
+                    <span class="small">at current rate</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main analytics row: Tank visual + Gauge + Status -->
+    <div class="row g-4 mb-4">
+        <!-- Smart tank visualization column -->
+        <div class="col-lg-5">
+            <div class="glass-card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-semibold mb-0"><i class="fas fa-flask me-2"></i>Live Tank Monitor</h5>
+                    <span id="statusChip" class="fuel-badge badge-critical"><i class="fas fa-circle me-1" style="font-size: 0.7rem;"></i> FETCHING</span>
+                </div>
+                <div class="tank-canvas-container">
+                    <canvas id="fuelTankCanvas" width="400" height="280" style="width:100%; height:auto; max-width:400px; margin:0 auto; display:block;"></canvas>
+                </div>
+                <div class="mt-3 text-center">
+                    <div class="progress mb-2" style="height: 10px; border-radius: 20px;">
+                        <div id="fuelFillProgress" class="progress-bar bg-gradient" style="width: 0%; background: linear-gradient(90deg, #10b981, #059669);" role="progressbar"></div>
+                    </div>
+                    <div class="d-flex justify-content-between small text-secondary">
+                        <span>Empty (15cm)</span>
+                        <span><i class="fas fa-arrow-down"></i> Sensor depth</span>
+                        <span>Full (2cm)</span>
+                    </div>
+                    <p class="mt-2 mb-0 fw-semibold" id="statusMessage">Waiting for live data...</p>
+                    <p class="update-time mt-1"><i class="far fa-calendar-alt me-1"></i> Last sync: <span id="lastUpdateTimestamp">--:--:--</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right side: doughnut gauge & alert thresholds + secondary info -->
+        <div class="col-lg-7">
+            <div class="glass-card p-4 h-100">
+                <div class="row g-3 h-100">
+                    <div class="col-md-5 d-flex flex-column">
+                        <h5 class="fw-semibold"><i class="fas fa-chart-pie me-2"></i>Fuel Gauge</h5>
+                        <div class="position-relative" style="min-height: 180px;">
+                            <canvas id="doughnutGauge" width="200" height="200" style="max-width: 180px; max-height: 180px; margin: 0 auto; display: block;"></canvas>
+                        </div>
+                        <div class="mt-2 text-center">
+                            <div class="badge-soft"><i class="fas fa-thermometer-half"></i> Sensor raw: <span id="rawDepthValue">--</span> cm</div>
+                        </div>
+                        <hr>
+                        <div class="alert alert-sm alert-info p-2 small mt-2" role="alert">
+                            <i class="fas fa-info-circle"></i> Tank calibration: Empty @15cm, Full @2cm.
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <h5 class="fw-semibold"><i class="fas fa-sliders-h me-2"></i>Threshold & Alerts</h5>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Low fuel alert (cm >)</label>
+                            <input type="number" id="lowThreshold" class="form-control form-control-sm" value="9" step="0.5" style="width: 100px; display: inline-block;" />
+                            <span class="small text-muted ms-2"> >9cm triggers LOW</span>
+                        </div>
+                        <div class="mb-2">
+                            <div id="customAlertBox" class="alert alert-warning py-2 small d-none"><i class="fas fa-exclamation-triangle me-1"></i> <span id="alertText"></span></div>
+                        </div>
+                        <hr>
+                        <div class="mt-2">
+                            <h6 class="fw-semibold"><i class="fas fa-microchip"></i> System Health</h6>
+                            <ul class="list-unstyled small">
+                                <li><i class="fas fa-wifi text-success"></i> ThingSpeak API: <span id="apiStatus">Active</span></li>
+                                <li><i class="fas fa-chart-simple"></i> Auto-refresh: every 15s</li>
+                                <li><i class="fas fa-database"></i> Historical points: 20</li>
+                            </ul>
+                        </div>
+                        <button id="resetThresholdBtn" class="btn btn-sm btn-outline-secondary mt-1"><i class="fas fa-undo-alt"></i> Reset defaults</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Chart + Recent records row -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="glass-card p-4">
+                <div class="d-flex justify-content-between flex-wrap align-items-center mb-3">
+                    <h5 class="fw-semibold"><i class="fas fa-chart-line me-2"></i>Fuel Trend (Last 20 Readings)</h5>
+                    <span class="badge-soft"><i class="fas fa-chart-line"></i> Depth vs Time</span>
+                </div>
+                <canvas id="historyChart" width="800" height="320" style="width:100%; height:auto; max-height:320px;"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="glass-card p-4 h-100">
+                <h5 class="fw-semibold"><i class="fas fa-history me-2"></i>Recent Telemetry</h5>
+                <div style="max-height: 340px; overflow-y: auto;">
+                    <table class="table table-custom table-sm">
+                        <thead>
+                            <tr><th>Time (HH:MM:SS)</th><th>Depth (cm)</th><th>Fuel %</th></tr>
+                        </thead>
+                        <tbody id="recentTableBody">
+                            <tr><td colspan="3" class="text-center text-muted">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-center mt-2 small text-muted">
+                    <i class="fas fa-chart-simple"></i> Updated in real-time
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer for project context -->
+    <footer class="text-center mt-3 pt-2 border-top">
+        <p class="mb-1">© 2025 NexGen Fuel Intelligence | Final Year Project – IoT Fuel Station Monitoring | Supervisor: Prof. Advanced Systems | Real-time data from ThingSpeak Channel 3356996</p>
+        <p class="mb-0 small"><i class="fas fa-code-branch"></i> Smart analytics, consumption algorithm & tank visualization</p>
+    </footer>
+</div>
+
+<script>
+    // ----- CONFIGURATION ------
+    const CHANNEL_ID = "3356996";
+    const READ_API_KEY = "";   // public channel works fine
+    const EMPTY_CM = 15.0;     // low fuel (tank near empty)
+    const FULL_CM = 2.0;       // full tank
+    const MAX_VOLUME_LITERS = 5000;  // Station capacity demonstration
+    
+    let depthHistory = [];      // store {x: timestampLabel, y: depthValue}
+    let rawHistoryData = [];    // for chart dataset
+    let chartInstance = null;
+    let doughnutChart = null;
+    let tankCanvas = null;
+    let tankCtx = null;
+    let currentDepth = null;
+    let lastVolume = null;
+    let lastTimestampMs = null;
+    let consumptionRate = 0;
+    
+    // Threshold user preference
+    let lowAlertCm = 9.0;
+    
+    // Helper: compute fuel percentage from depth
+    function computePercentage(depthCm) {
+        if (depthCm === null || isNaN(depthCm)) return 0;
+        let percent = ((EMPTY_CM - depthCm) / (EMPTY_CM - FULL_CM)) * 100;
+        return Math.min(100, Math.max(0, percent));
+    }
+    
+    // Compute volume from depth
+    function computeVolume(depthCm) {
+        let percent = computePercentage(depthCm);
+        return (percent / 100) * MAX_VOLUME_LITERS;
+    }
+    
+    // ----- DRAW CUSTOM TANK (Canvas: realistic rounded tank + liquid wave style) -----
+    function drawTank(percentage, depthValue) {
+        if (!tankCtx) return;
+        const canvas = tankCanvas;
+        const ctx = tankCtx;
+        const w = canvas.width, h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        
+        // Background metallic effect
+        ctx.save();
+        // Tank body
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "#eef2ff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = "#cbd5e1";
+        ctx.globalAlpha = 0.3;
+        for(let i=0;i<40;i++) ctx.fillRect(0, i*10, w, 2);
+        ctx.globalAlpha = 1;
+        
+        // tank shape rounded rect
+        ctx.fillStyle = "#94a3b8";
+        ctx.strokeStyle = "#334155";
+        ctx.lineWidth = 2;
+        const borderRadius = 24;
+        ctx.beginPath();
+        ctx.moveTo(borderRadius, 0);
+        ctx.lineTo(w - borderRadius, 0);
+        ctx.quadraticCurveTo(w, 0, w, borderRadius);
+        ctx.lineTo(w, h - borderRadius);
+        ctx.quadraticCurveTo(w, h, w - borderRadius, h);
+        ctx.lineTo(borderRadius, h);
+        ctx.quadraticCurveTo(0, h, 0, h - borderRadius);
+        ctx.lineTo(0, borderRadius);
+        ctx.quadraticCurveTo(0, 0, borderRadius, 0);
+        ctx.closePath();
+        ctx.fillStyle = "#f8fafc";
+        ctx.fill();
+        ctx.stroke();
+        
+        // Liquid fill (dynamic based on percentage)
+        const liquidHeight = (percentage / 100) * (h - 20) + 5;
+        ctx.beginPath();
+        ctx.rect(3, h - liquidHeight, w-6, liquidHeight);
+        const gradient = ctx.createLinearGradient(0, h - liquidHeight, 0, h);
+        gradient.addColorStop(0, "#2dd4bf");
+        gradient.addColorStop(1, "#0f766e");
+        ctx.fillStyle = gradient;
+        ctx.fill();
+        // top wave effect
+        ctx.beginPath();
+        for(let x=0; x<w; x+=12) {
+            ctx.moveTo(x, h - liquidHeight);
+            ctx.lineTo(x+6, h - liquidHeight - Math.sin(Date.now()/800 + x/30)*2);
+            ctx.lineTo(x+12, h - liquidHeight);
+        }
+        ctx.fillStyle = "#14b8a6";
+        ctx.fill();
+        
+        // inner shine
+        ctx.fillStyle = "rgba(255,255,240,0.2)";
+        ctx.fillRect(5, 5, w-10, 12);
+        
+        // draw percentage text inside
+        ctx.font = "bold 20px 'Inter'";
+        ctx.fillStyle = "#0f172a";
+        ctx.shadowBlur = 0;
+        ctx.fillText(`${Math.round(percentage)}%`, w/2-28, h/2+8);
+        ctx.font = "12px 'Inter'";
+        ctx.fillStyle = "#334155";
+        ctx.fillText(`${depthValue.toFixed(1)} cm`, w/2-30, h-18);
+        ctx.restore();
+    }
+    
+    function animateTank() {
+        if (currentDepth !== null) {
+            let pct = computePercentage(currentDepth);
+            drawTank(pct, currentDepth);
+        }
+        requestAnimationFrame(animateTank);
+    }
+    
+    // Update UI components (dashboard values, gauge, chart, table)
+    async function fetchAndUpdate() {
+        try {
+            document.getElementById('apiStatus').innerHTML = '<i class="fas fa-spinner fa-pulse"></i> fetching';
+            // fetch latest 1 + last 20 for history
+            const [latestRes, historyRes] = await Promise.all([
+                fetch(`https://api.thingspeak.com/channels/${CHANNEL_ID}/fields/1.json?results=1`),
+                fetch(`https://api.thingspeak.com/channels/${CHANNEL_ID}/fields/1.json?results=20`)
+            ]);
+            if (!latestRes.ok || !historyRes.ok) throw new Error("API fetch failed");
+            const latestData = await latestRes.json();
+            const historyData = await historyRes.json();
+            
+            if (!latestData.feeds || latestData.feeds.length === 0) throw new Error("No data");
+            const latestFeed = latestData.feeds[0];
+            const depthCm = parseFloat(latestFeed.field1);
+            if (isNaN(depthCm)) throw new Error("Invalid sensor value");
+            currentDepth = depthCm;
+            const timestampRaw = latestFeed.created_at;
+            const updateDate = new Date(timestampRaw);
+            document.getElementById('lastUpdateTimestamp').innerText = updateDate.toLocaleTimeString();
+            document.getElementById('rawDepthValue').innerText = depthCm.toFixed(2);
+            
+            // percentage and volume
+            let percent = computePercentage(depthCm);
+            let volume = computeVolume(depthCm);
+            document.getElementById('fuelPercentDisplay').innerText = Math.round(percent) + "%";
+            document.getElementById('depthDisplay').innerHTML = `${depthCm.toFixed(1)} cm depth`;
+            document.getElementById('volumeDisplay').innerHTML = Math.round(volume) + " L";
+            document.getElementById('fuelFillProgress').style.width = percent + "%";
+            
+            // status badge & alert logic
+            let statusBadge = document.getElementById('statusChip');
+            let statusMsg = "";
+            if (depthCm >= lowAlertCm) {
+                statusBadge.className = "fuel-badge badge-critical";
+                statusBadge.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> LOW FUEL';
+                statusMsg = "⚠️ Critical: Low fuel level – immediate attention required";
+            } else if (depthCm >= 6) {
+                statusBadge.className = "fuel-badge badge-warning";
+                statusBadge.innerHTML = '<i class="fas fa-chart-line me-1"></i> MEDIUM RESERVE';
+                statusMsg = "⚠️ Moderate level, schedule refill soon";
+            } else {
+                statusBadge.className = "fuel-badge badge-success";
+                statusBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i> OPTIMAL LEVEL';
+                statusMsg = "✅ Fuel level healthy, station operational";
+            }
+            document.getElementById('statusMessage').innerHTML = statusMsg;
+            
+            // custom threshold alert
+            const alertDiv = document.getElementById('customAlertBox');
+            const alertSpan = document.getElementById('alertText');
+            if (depthCm > lowAlertCm) {
+                alertDiv.classList.remove('d-none');
+                alertSpan.innerText = `Fuel depth ${depthCm.toFixed(1)} cm above warning threshold (${lowAlertCm} cm). Action needed!`;
+            } else {
+                alertDiv.classList.add('d-none');
+            }
+            
+            // Update doughnut gauge
+            if (doughnutChart) {
+                doughnutChart.data.datasets[0].data = [percent, 100-percent];
+                doughnutChart.update();
+            }
+            
+            // consumption rate logic & time to empty (store previous volume)
+            if (lastVolume !== null && lastTimestampMs !== null) {
+                let timeDiffHours = (updateDate.getTime() - lastTimestampMs) / (1000 * 3600);
+                if (timeDiffHours > 0) {
+                    let volumeDelta = lastVolume - volume;
+                    if (volumeDelta < 0) volumeDelta = 0;
+                    consumptionRate = volumeDelta / timeDiffHours;
+                    if (isNaN(consumptionRate) || consumptionRate < 0) consumptionRate = 0;
+                    document.getElementById('consumptionRate').innerHTML = consumptionRate.toFixed(1) + " L/h";
+                    let tte = (consumptionRate > 0.1) ? (volume / consumptionRate) : 999;
+                    if (tte > 500) tte = 999;
+                    document.getElementById('timeToEmpty').innerHTML = (tte > 500 ? "∞" : tte.toFixed(1) + " h");
+                }
+            } else {
+                document.getElementById('consumptionRate').innerHTML = "— L/h";
+                document.getElementById('timeToEmpty').innerHTML = "—";
+            }
+            lastVolume = volume;
+            lastTimestampMs = updateDate.getTime();
+            
+            // ---- Process history chart (20 points) ----
+            const feeds = historyData.feeds.reverse(); // chronological order
+            let chartLabels = [];
+            let chartDepths = [];
+            let recentRows = [];
+            feeds.slice(-12).forEach(feed => {
+                if (feed.field1) {
+                    let d = parseFloat(feed.field1);
+                    if (!isNaN(d)) {
+                        let timeLabel = new Date(feed.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+                        chartLabels.push(timeLabel);
+                        chartDepths.push(d);
+                        recentRows.unshift({time: timeLabel, depth: d, percent: computePercentage(d)});
+                    }
+                }
+            });
+            // update recent table
+            const tbody = document.getElementById('recentTableBody');
+            tbody.innerHTML = "";
+            recentRows.slice(0, 6).forEach(row => {
+                let tr = `<tr><td>${row.time}</td><td>${row.depth.toFixed(1)} cm</td><td>${Math.round(row.percent)}%</td></tr>`;
+                tbody.insertAdjacentHTML('beforeend', tr);
+            });
+            if (recentRows.length === 0) tbody.innerHTML = '<tr><td colspan="3" class="text-muted">No recent data</td></tr>';
+            
+            // update line chart
+            if (chartInstance) {
+                chartInstance.data.labels = chartLabels;
+                chartInstance.data.datasets[0].data = chartDepths;
+                chartInstance.update();
+            }
+            document.getElementById('apiStatus').innerHTML = '<i class="fas fa-check-circle text-success"></i> Active';
+        } catch (err) {
+            console.error(err);
+            document.getElementById('apiStatus').innerHTML = '<i class="fas fa-exclamation-triangle text-danger"></i> Connection issue';
+            document.getElementById('statusMessage').innerHTML = "⚠️ Data fetch error – check network or ThingSpeak channel";
+        }
+    }
+    
+    // manual refresh with visual feedback
+    function manualRefresh() {
+        const btn = document.getElementById('manualRefreshBtn');
+        btn.innerHTML = '<i class="fas fa-spinner fa-pulse me-1"></i> Syncing';
+        fetchAndUpdate().finally(() => {
+            setTimeout(() => { btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Refresh'; }, 800);
+        });
+    }
+    
+    // build chart.js history chart (depth vs time)
+    function initChart() {
+        const ctx = document.getElementById('historyChart').getContext('2d');
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Fuel Depth (cm) ↓ indicates higher fuel',
+                    data: [],
+                    borderColor: '#0f766e',
+                    backgroundColor: 'rgba(15, 118, 110, 0.05)',
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#2dd4bf',
+                    pointBorderColor: '#134e4a',
+                    tension: 0.2,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    tooltip: { callbacks: { label: (ctx) => `Depth: ${ctx.raw} cm (Fuel ${computePercentage(ctx.raw).toFixed(0)}%)` } },
+                    legend: { position: 'top' }
+                },
+                scales: { y: { title: { display: true, text: 'Depth (cm)' }, reverse: true, min: 1, max: 16 } }
+            }
+        });
+    }
+    
+    function initDoughnut() {
+        const dctx = document.getElementById('doughnutGauge').getContext('2d');
+        doughnutChart = new Chart(dctx, {
+            type: 'doughnut',
+            data: { labels: ['Fuel Level', 'Empty Space'], datasets: [{ data: [0, 100], backgroundColor: ['#10b981', '#e2e8f0'], borderWidth: 0, cutout: '70%' }] },
+            options: { plugins: { tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw}%` } } }, responsive: true, maintainAspectRatio: true }
+        });
+    }
+    
+    // threshold management
+    function applyThresholdSettings() {
+        let inputVal = parseFloat(document.getElementById('lowThreshold').value);
+        if (!isNaN(inputVal)) {
+            lowAlertCm = Math.min(EMPTY_CM, Math.max(FULL_CM, inputVal));
+            document.getElementById('lowThreshold').value = lowAlertCm;
+            if (currentDepth !== null) fetchAndUpdate(); // re-evaluate alert
+        }
+    }
+    
+    // Real-time clock
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('liveClock').innerText = now.toLocaleTimeString('en-GB');
+    }
+    
+    // setup listeners & start
+    window.addEventListener('load', () => {
+        tankCanvas = document.getElementById('fuelTankCanvas');
+        tankCtx = tankCanvas.getContext('2d');
+        tankCanvas.width = 400; tankCanvas.height = 280;
+        animateTank();
+        initChart();
+        initDoughnut();
+        fetchAndUpdate();
+        setInterval(fetchAndUpdate, 15000);
+        setInterval(updateClock, 1000);
+        document.getElementById('manualRefreshBtn').addEventListener('click', manualRefresh);
+        document.getElementById('lowThreshold').addEventListener('change', applyThresholdSettings);
+        document.getElementById('resetThresholdBtn').addEventListener('click', () => {
+            document.getElementById('lowThreshold').value = "9";
+            applyThresholdSettings();
+        });
+        updateClock();
+    });
+</script>
+</body>
+</html>
