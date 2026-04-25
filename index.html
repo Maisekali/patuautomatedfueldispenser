@@ -1,9 +1,12 @@
+Here is the enhanced dashboard with your API key integrated, the tank volume limited to 10L for prototyping, and a refined "time to empty" algorithm that never shows infinity.
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>MAISETECHSOL Fuel Intelligence | Real-Time Station Command Center</title>
+    <title>MAISETECHSOLLTD Fuel Intelligence | Real-Time Station Command Center</title>
     <!-- Bootstrap 5 + Icons + Fonts + Chart.js -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -138,9 +141,9 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
         <div>
             <h1 class="fw-bold" style="background: linear-gradient(120deg, #0b2b3b, #1e4a6e); background-clip: text; -webkit-background-clip: text; color: transparent;">
-                <i class="fas fa-gas-pump me-2" style="background: none; -webkit-background-clip: unset; color: #1e4a6e;"></i>AUTOMATED FUEL DISPENSOER Command Center
+                <i class="fas fa-gas-pump me-2" style="background: none; -webkit-background-clip: unset; color: #1e4a6e;"></i>AUTOMATED FUEL DISPENSOR Command Center
             </h1>
-            <p class="text-secondary-emphasis mt-1 mb-0"><i class="fas fa-microchip me-1"></i> IoT Smart FUEL Station | PATRICK-Final Year Project Real-Time Telemetry</p>
+            <p class="text-secondary-emphasis mt-1 mb-0"><i class="fas fa-microchip me-1"></i> IoT Smart Station |PATRICK Final Year Project – Real-Time Telemetry</p>
         </div>
         <div class="d-flex gap-2 align-items-center">
             <div class="badge-soft"><i class="far fa-clock me-1"></i> <span id="liveClock">--:--:--</span></div>
@@ -167,7 +170,7 @@
                 <div>
                     <p class="text-muted mb-0 small fw-semibold">EST. VOLUME</p>
                     <h3 class="fw-bold mb-0" id="volumeDisplay">-- L</h3>
-                    <span class="small">capacity 5000 L</span>
+                    <span class="small">max capacity 10 L (prototype)</span>
                 </div>
             </div>
         </div>
@@ -187,7 +190,7 @@
                 <div>
                     <p class="text-muted mb-0 small fw-semibold">TIME TO EMPTY</p>
                     <h3 class="fw-bold mb-0" id="timeToEmpty">-- h</h3>
-                    <span class="small">at current rate</span>
+                    <span class="small">at current consumption rate</span>
                 </div>
             </div>
         </div>
@@ -234,7 +237,7 @@
                         </div>
                         <hr>
                         <div class="alert alert-sm alert-info p-2 small mt-2" role="alert">
-                            <i class="fas fa-info-circle"></i> Tank calibration: Empty @15cm, Full @2cm.
+                            <i class="fas fa-info-circle"></i> Tank calibration: Empty @15cm, Full @2cm. Max volume 10L.
                         </div>
                     </div>
                     <div class="col-md-7">
@@ -296,21 +299,21 @@
 
     <!-- Footer for project context -->
     <footer class="text-center mt-3 pt-2 border-top">
-        <p class="mb-1">© 2026 MAISETECH Fuel Intelligence |IoT Fuel Station Monitoring | Supervisor: DR OKINDA. Advanced Systems | Real-time data from ThingSpeak Channel 3356996</p>
-        <p class="mb-0 small"><i class="fas fa-code-branch"></i> Smart analytics, consumption algorithm & tank visualization</p>
+        <p class="mb-1">© 2026 MAISETECHSOLLTD Fuel Intelligence | Final Year Project – IoT Fuel Station Monitoring (Prototype: 10L capacity) | Real-time data from ThingSpeak Channel 3356996</p>
+        <p class="mb-0 small"><i class="fas fa-code-branch"></i> Smart analytics, consumption algorithm & tank visualization | API Key Integrated</p>
     </footer>
 </div>
 
 <script>
     // ----- CONFIGURATION ------
     const CHANNEL_ID = "3356996";
-    const READ_API_KEY = "7ZGK7M8408TKWDQ3";   // public channel works fine
-    const EMPTY_CM = 15.0;     // low fuel (tank near empty)
-    const FULL_CM = 2.0;       // full tank
-    const MAX_VOLUME_LITERS = 5000;  // Station capacity demonstration
+    const READ_API_KEY = "7ZGK7M8408TKWDQ3";   // Provided read API key
+    const EMPTY_CM = 15.0;     // tank near empty (sensor depth high)
+    const FULL_CM = 2.0;       // full tank (sensor depth low)
+    const MAX_VOLUME_LITERS = 10;   // PROTOTYPE: maximum estimated volume is 10 liters
     
-    let depthHistory = [];      // store {x: timestampLabel, y: depthValue}
-    let rawHistoryData = [];    // for chart dataset
+    let depthHistory = [];
+    let rawHistoryData = [];
     let chartInstance = null;
     let doughnutChart = null;
     let tankCanvas = null;
@@ -330,7 +333,7 @@
         return Math.min(100, Math.max(0, percent));
     }
     
-    // Compute volume from depth
+    // Compute volume from depth (based on 10L max prototype)
     function computeVolume(depthCm) {
         let percent = computePercentage(depthCm);
         return (percent / 100) * MAX_VOLUME_LITERS;
@@ -347,7 +350,6 @@
         // Background metallic effect
         ctx.save();
         // Tank body
-        ctx.shadowBlur = 0;
         ctx.fillStyle = "#eef2ff";
         ctx.fillRect(0, 0, w, h);
         ctx.fillStyle = "#cbd5e1";
@@ -421,10 +423,12 @@
     async function fetchAndUpdate() {
         try {
             document.getElementById('apiStatus').innerHTML = '<i class="fas fa-spinner fa-pulse"></i> fetching';
-            // fetch latest 1 + last 20 for history
+            // Build URLs with API key
+            const latestUrl = `https://api.thingspeak.com/channels/${CHANNEL_ID}/fields/1.json?api_key=${READ_API_KEY}&results=1`;
+            const historyUrl = `https://api.thingspeak.com/channels/${CHANNEL_ID}/fields/1.json?api_key=${READ_API_KEY}&results=20`;
             const [latestRes, historyRes] = await Promise.all([
-                fetch(`https://api.thingspeak.com/channels/${CHANNEL_ID}/fields/1.json?results=1`),
-                fetch(`https://api.thingspeak.com/channels/${CHANNEL_ID}/fields/1.json?results=20`)
+                fetch(latestUrl),
+                fetch(historyUrl)
             ]);
             if (!latestRes.ok || !historyRes.ok) throw new Error("API fetch failed");
             const latestData = await latestRes.json();
@@ -440,12 +444,12 @@
             document.getElementById('lastUpdateTimestamp').innerText = updateDate.toLocaleTimeString();
             document.getElementById('rawDepthValue').innerText = depthCm.toFixed(2);
             
-            // percentage and volume
+            // percentage and volume (10L max)
             let percent = computePercentage(depthCm);
             let volume = computeVolume(depthCm);
             document.getElementById('fuelPercentDisplay').innerText = Math.round(percent) + "%";
             document.getElementById('depthDisplay').innerHTML = `${depthCm.toFixed(1)} cm depth`;
-            document.getElementById('volumeDisplay').innerHTML = Math.round(volume) + " L";
+            document.getElementById('volumeDisplay').innerHTML = volume.toFixed(2) + " L";
             document.getElementById('fuelFillProgress').style.width = percent + "%";
             
             // status badge & alert logic
@@ -482,23 +486,39 @@
                 doughnutChart.update();
             }
             
-            // consumption rate logic & time to empty (store previous volume)
-            if (lastVolume !== null && lastTimestampMs !== null) {
+            // CONSUMPTION RATE & TIME TO EMPTY (never show infinity)
+            if (lastVolume !== null && lastTimestampMs !== null && updateDate.getTime() > lastTimestampMs) {
                 let timeDiffHours = (updateDate.getTime() - lastTimestampMs) / (1000 * 3600);
                 if (timeDiffHours > 0) {
                     let volumeDelta = lastVolume - volume;
-                    if (volumeDelta < 0) volumeDelta = 0;
+                    if (volumeDelta < 0) volumeDelta = 0;  // refill case -> consumption zero
                     consumptionRate = volumeDelta / timeDiffHours;
                     if (isNaN(consumptionRate) || consumptionRate < 0) consumptionRate = 0;
-                    document.getElementById('consumptionRate').innerHTML = consumptionRate.toFixed(1) + " L/h";
-                    let tte = (consumptionRate > 0.1) ? (volume / consumptionRate) : 999;
-                    if (tte > 500) tte = 999;
-                    document.getElementById('timeToEmpty').innerHTML = (tte > 500 ? "∞" : tte.toFixed(1) + " h");
+                    document.getElementById('consumptionRate').innerHTML = consumptionRate.toFixed(2) + " L/h";
+                    
+                    // TIME TO EMPTY: finite value even for very low consumption
+                    let timeToEmptyHours = 0;
+                    if (consumptionRate > 0.001) {
+                        timeToEmptyHours = volume / consumptionRate;
+                    } else {
+                        // Extremely low consumption: set a high but finite realistic limit (e.g., 1000 hours max)
+                        timeToEmptyHours = 1000;
+                    }
+                    // Cap at a reasonable max for display (no infinity)
+                    if (timeToEmptyHours > 9999) timeToEmptyHours = 9999;
+                    if (volume <= 0.05) timeToEmptyHours = 0;
+                    let tteDisplay = (timeToEmptyHours >= 1000) ? ">999h" : timeToEmptyHours.toFixed(1) + " h";
+                    if (volume === 0) tteDisplay = "EMPTY";
+                    document.getElementById('timeToEmpty').innerHTML = tteDisplay;
+                } else {
+                    document.getElementById('consumptionRate').innerHTML = "0.00 L/h";
+                    document.getElementById('timeToEmpty').innerHTML = "—";
                 }
             } else {
                 document.getElementById('consumptionRate').innerHTML = "— L/h";
                 document.getElementById('timeToEmpty').innerHTML = "—";
             }
+            // Store for next iteration
             lastVolume = volume;
             lastTimestampMs = updateDate.getTime();
             
@@ -629,3 +649,4 @@
 </script>
 </body>
 </html>
+```
